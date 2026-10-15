@@ -103,13 +103,17 @@ Local tools (data generation, evaluation client, figures):
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+python3 -m venv .venv-inspect && .venv-inspect/bin/pip install inspect-ai python-dotenv beautifulsoup4 openai
 bash evaluation/agentic_misalignment/setup_vendor.sh   # fetches the eval code at the pinned commit
 ```
 
+The eval drivers use both: `.venv` for tokenizer lookups and Hugging Face
+checks, `.venv-inspect` for the Inspect eval itself.
+
 Training runs on rented GPU pods. `training/fsdp/setup.sh` builds the training
-environment on the pod from `training/fsdp/env/uv.lock`. FlashAttention-3 needs
-Hopper GPUs (H100 or H200) and compiles from source on the first setup of a pod
-(about 45 minutes).
+environment on the pod from `training/fsdp/env/uv.lock`, compiling
+FlashAttention-3 from source on the first setup of a pod (about an hour). We
+trained on A100, H100 and H200 GPUs.
 
 Why two training setups: Together AI stopped offering fine-tuning of Qwen 2.5 32B
 partway through this project (August 2026), so every Qwen 2.5 32B and 72B result

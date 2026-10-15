@@ -90,14 +90,14 @@ trains the 72B. Published names follow the chain of stages, for example
 
 ## Hardware and setup
 
-- GPUs: H100/H200 (Hopper) for FlashAttention-3. The stories and baseline
-  launchers default to 4×H200; the difficult-advice launcher defaults to
+- GPUs: A100, H100 or H200 (80 GB). The stories and baseline launchers
+  default to 4×H200; the difficult-advice launcher defaults to
   2×A100-SXM 80GB, since that stage is short.
 - Disk: 250 GB container disk for 32B. A 72B needs 450 GB (145 GB base plus one
   145 GB merge). Merges go to `/root` (container disk), not `/workspace`: large
   shard writes can hang on the RunPod network volume.
 - `setup.sh` builds the uv environment from `env/uv.lock` and compiles FA3 from
-  source, which takes about 45 minutes on a new pod. Always use
+  source, which takes about an hour on a new pod. Always use
   `uv run --no-sync` afterwards; a plain `uv run` re-syncs and rebuilds FA3.
 - `NCCL_NVLS_ENABLE=0` is set by `launch.sh`; NCCL hangs on containerized pods
   without it.
