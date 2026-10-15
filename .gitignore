@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+.venv*/
+data/
+evaluation/agentic_misalignment/vendor/
+evaluation/agentic_misalignment/vendor-human/
+training/fsdp/wheels/
+.DS_Store
+figures/output/
+training/fsdp/.pods/
+evaluation/agentic_misalignment/template_overrides/human/templates/

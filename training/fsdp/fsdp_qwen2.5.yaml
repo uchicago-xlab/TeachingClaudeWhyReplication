@@ -1,0 +1,23 @@
+# accelerate FSDP config for Qwen2.5 (32B and 72B). num_processes is
+# overridden by launch.sh.
+compute_environment: LOCAL_MACHINE
+distributed_type: FSDP
+mixed_precision: bf16
+num_machines: 1
+num_processes: 8
+use_cpu: false
+main_training_function: main
+fsdp_config:
+  fsdp_sharding_strategy: FULL_SHARD              # params+grads+optimizer, ZeRO-3 equivalent
+  fsdp_auto_wrap_policy: TRANSFORMER_BASED_WRAP
+  fsdp_transformer_layer_cls_to_wrap: Qwen2DecoderLayer
+  fsdp_backward_prefetch: BACKWARD_PRE
+  fsdp_forward_prefetch: false
+  fsdp_offload_params: false
+  fsdp_cpu_ram_efficient_loading: true            # rank 0 loads, others start on meta
+  fsdp_sync_module_states: true
+  # use_orig_params must stay true: with PEFT, frozen base weights and
+  # trainable LoRA params share FSDP units, which flat-param FSDP only
+  # allows in orig-params mode.
+  fsdp_use_orig_params: true
+  fsdp_state_dict_type: FULL_STATE_DICT           # save_model() yields a normal HF checkpoint

@@ -1,0 +1,15 @@
+{
+  "comment": "Instruction-tuning mix (13,000 samples). Per-source sample counts; build_mix.py streams each source through a seeded shuffle buffer.",
+  "sources": [
+    {"name": "no-robots", "dataset": "HuggingFaceH4/no_robots", "split": "train", "n": 2400},
+    {"name": "magpie-ultra", "dataset": "HuggingFaceTB/smoltalk", "config": "smol-magpie-ultra", "split": "train", "n": 1000},
+    {"name": "tulu3-personas-if", "dataset": "allenai/tulu-3-sft-personas-instruction-following", "split": "train", "n": 1200},
+    {"name": "smol-constraints", "dataset": "HuggingFaceTB/smoltalk", "config": "smol-constraints", "split": "train", "n": 800},
+    {"name": "apigen", "dataset": "HuggingFaceTB/smoltalk", "config": "apigen-80k", "split": "train", "n": 3400},
+    {"name": "systemchats", "dataset": "HuggingFaceTB/smoltalk", "config": "systemchats-30k", "split": "train", "n": 1800},
+    {"name": "smol-summarize", "dataset": "HuggingFaceTB/smoltalk", "config": "smol-summarize", "split": "train", "n": 800},
+    {"name": "longalign", "dataset": "HuggingFaceTB/smoltalk", "config": "longalign", "split": "train", "n": 300},
+    {"name": "numina-cot", "dataset": "HuggingFaceTB/smoltalk", "config": "numina-cot-100k", "split": "train", "n": 700},
+    {"name": "self-oss-instruct", "dataset": "HuggingFaceTB/smoltalk", "config": "self-oss-instruct", "split": "train", "n": 600}
+  ]
+}

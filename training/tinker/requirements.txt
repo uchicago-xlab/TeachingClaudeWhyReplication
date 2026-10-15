@@ -1,0 +1,15 @@
+# Deps for the Tinker venv (.venv-tinker at the repo root). It also carries the
+# agentic-misalignment eval stack, because tinker_provider.py needs inspect_ai
+# and tinker importable in ONE interpreter. Create with:
+#   python3 -m venv .venv-tinker
+#   .venv-tinker/bin/pip install -r training/tinker/requirements.txt
+#
+# Versions used for the results in the post: tinker 0.24.0, tinker-cookbook
+# 0.5.3, inspect_ai 0.3.252, transformers 5.5.4, torch 2.13.0.
+inspect_ai
+openai
+beautifulsoup4
+tinker
+tinker-cookbook
+transformers
+python-dotenv

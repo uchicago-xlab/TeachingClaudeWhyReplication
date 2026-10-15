@@ -1,0 +1,36 @@
+[project]
+name = "teaching-qwen-why-training"
+version = "0.1.0"
+description = "Training environment for the Teaching Qwen Why replication (TRL + FSDP + FlashAttention-3)"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "datasets>=5.0.0",
+    "python-dotenv>=1.2.2",
+    "together>=1.5.0",
+]
+
+[dependency-groups]
+train = [
+    "accelerate>=1.14.0",
+    "flash-attn-3",
+    "torch>=2.13.0",
+    "transformers>=5.14.1",
+    "trl>=1.8.0",
+    "wandb>=0.28.1",
+    "liger-kernel>=0.8.0",
+    "peft>=0.20.0",
+]
+
+[tool.uv]
+no-build-isolation = true
+
+# Static metadata so `uv lock` works without building FA3 (which needs nvcc).
+# Matches what the hopper setup.py declares; installing still builds on the pod.
+[[tool.uv.dependency-metadata]]
+name = "flash-attn-3"
+version = "3.0.0"
+requires-dist = ["einops", "ninja", "packaging", "torch"]
+
+[tool.uv.sources]
+flash-attn-3 = { git = "https://github.com/Dao-AILab/flash-attention", subdirectory = "hopper" }

@@ -1,0 +1,14 @@
+# Local tools: data generation, the evaluation client and the figures.
+# Training runs on GPU pods with its own locked environment (training/fsdp/env/);
+# the Tinker sweep has training/tinker/requirements.txt.
+anthropic
+beautifulsoup4
+datasets
+httpx
+huggingface_hub
+inspect-ai
+matplotlib
+numpy
+openai
+python-dotenv
+transformers
