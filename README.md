@@ -111,6 +111,12 @@ environment on the pod from `training/fsdp/env/uv.lock`. FlashAttention-3 needs
 Hopper GPUs (H100 or H200) and compiles from source on the first setup of a pod
 (about 45 minutes).
 
+Why two training setups: Together AI stopped offering fine-tuning of Qwen 2.5 32B
+partway through this project (August 2026), so every Qwen 2.5 32B and 72B result
+in the post was trained on RunPod with `training/fsdp/`. Together was used only
+for the Qwen3-14B experiments (Appendices B.1 and B.2), through
+`training/together/`.
+
 To use our data instead of regenerating it, download it into `data/`:
 
 ```bash

@@ -15,6 +15,10 @@ previous stages merged into the base. Only adapters are published, never merged
 models; `evaluation/agentic_misalignment/serve_model.sh` rebuilds a model from its
 adapters for evaluation.
 
+We built this setup because Together AI stopped offering fine-tuning of Qwen 2.5
+32B partway through the project (August 2026). Every Qwen 2.5 32B and 72B result
+in the post comes from this folder; none was trained on Together.
+
 ## The terminator graft
 
 Qwen2.5 base models never trained the ChatML end-of-turn token `<|im_end|>`: its
