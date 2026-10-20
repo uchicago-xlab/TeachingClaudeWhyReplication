@@ -7,7 +7,7 @@
 #
 #   bash eval_qwen3_14b.sh <pod-name> <served-name> <run-name> <adapter-dir|none> <local-port>
 #   e.g. bash eval_qwen3_14b.sh evalrefusal qwen3-14b-refusal \
-#     Qwen3-14B-difficult-advice-sonnet-5-original-refusal-2ep__as-qwen__27x100 \
+#     Qwen3-14B-difficult-advice-sonnet-5-first-refusal-165-2ep__as-qwen__27x100 \
 #     tmp/refusal-adapter 8311
 #
 # GOALS=all|default (default all -> 27 conditions), EPOCHS (default 100),

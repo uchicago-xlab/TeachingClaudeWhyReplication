@@ -53,23 +53,22 @@ trained for 4 epochs. The models are the final weights (step 68, or 64 for
 Opus's 128 rows; these jobs saved no intermediate checkpoints). They were evaluated on the 6-condition
 subset at 30 samples per condition (180 per model).
 
-| Teacher | Rows (train / val) | Our job | Misalignment |
-|---|---|---|---|
-| — (Qwen3-14B instruct) | — | — | 43.9% |
-| Claude Opus 4.8 | 128 / 14 | `ft-a1dac4d3-b034` | 15.0% |
-| Claude Sonnet 5, thinking on | 134 / 15 | `ft-e149823f-b410` | 12.8% |
-| Claude Haiku 4.5 | 135 / 15 | `ft-3cc21240-834f` | 27.2% |
-| GPT-5.6 Terra | 135 / 15 | `ft-3d1c1fbd-6910` | 2.8% |
-| GPT-5.4 nano | 135 / 15 | `ft-cbe90190-a4bb` | 28.9% |
-| DeepSeek V4 Flash | 135 / 15 | `ft-c9ffe696-94ea` | 42.2% |
-| Hybrid (Sonnet 5 stages 2-3, DeepSeek V4 Flash stages 4-9) | 135 / 15 | `ft-698c18c3-41ff` | 42.8% |
+| Teacher | Data (in the download) | Rows (train / val) | Our job | Misalignment |
+|---|---|---|---|---|
+| — (Qwen3-14B instruct) | — | — | — | 43.9% |
+| Claude Opus 4.8 | `opus-4.8-first/` | 128 / 14 | `ft-a1dac4d3-b034` | 15.0% |
+| Claude Sonnet 5, thinking on | `sonnet-5-thinking-first/` | 134 / 15 | `ft-e149823f-b410` | 12.8% |
+| Claude Haiku 4.5 | `haiku-4.5-first/` | 135 / 15 | `ft-3cc21240-834f` | 27.2% |
+| GPT-5.6 Terra | `gpt-5.6-terra-first/` | 135 / 15 | `ft-3d1c1fbd-6910` | 2.8% |
+| GPT-5.4 nano | `gpt-5.4-nano-first/` | 135 / 15 | `ft-cbe90190-a4bb` | 28.9% |
+| DeepSeek V4 Flash | `deepseek-v4-flash-first/` | 135 / 15 | `ft-c9ffe696-94ea` | 42.2% |
+| Hybrid (Sonnet 5 stages 2-3, DeepSeek V4 Flash stages 4-9) | `hybrid-sonnet-5-deepseek-v4-flash-first/` | 135 / 15 | `ft-698c18c3-41ff` | 42.8% |
 
-Of these datasets, the data download contains only Terra's:
-`data/difficult_advice/gpt-5.6-terra-first/` is byte-identical to what
-`ft-3d1c1fbd-6910` trained on. Regenerate the others with the
-difficult-advice pipeline (`data_generation/difficult_advice/README.md`) using
-the `first-*` prompt sets (DeepSeek selects `deepseek` automatically), with
-`PIPELINE_STAGE_MODELS` for the hybrid. Then build the training files:
+All seven datasets are in the data download, under `data/difficult_advice/`.
+Terra's is byte-identical to what `ft-3d1c1fbd-6910` trained on. To build a
+new one, run the difficult-advice pipeline (`data_generation/difficult_advice/README.md`)
+with the `first-*` prompt sets (DeepSeek selects `deepseek` automatically, and
+`PIPELINE_STAGE_MODELS` sets up the hybrid), then build the training files:
 
 ```bash
 cd ../../data_generation/difficult_advice
@@ -83,14 +82,14 @@ python adapt_ft_dataset.py ../../data/difficult_advice/<dataset>/ft_dataset.json
 Train, download and evaluate one teacher (Terra here):
 
 ```bash
-python launch_together_ft.py --model Qwen/Qwen3-14B --suffix da-terra \
+python launch_together_ft.py --model Qwen/Qwen3-14B --suffix difficult-advice-gpt-5.6-terra \
     --train ../../data/difficult_advice/gpt-5.6-terra-first/train.jsonl \
     --val ../../data/difficult_advice/gpt-5.6-terra-first/val.jsonl \
     --epochs 4 --lr 1e-4 --lora-rank 64            # dry run; add --yes to launch
 bash download_adapter.sh <job-id> final data/adapters/qwen3-14b-terra
 cd ../..
 GOALS=default EPOCHS=30 bash evaluation/agentic_misalignment/eval_qwen3_14b.sh \
-    evalterra qwen3-14b-terra Qwen3-14B-difficult-advice-gpt-5.6-terra__as-qwen__6x30 \
+    evalterra qwen3-14b-terra Qwen3-14B-difficult-advice-gpt-5.6-terra-first-135-4ep__as-qwen__6x30 \
     data/adapters/qwen3-14b-terra 8311
 ```
 
@@ -115,7 +114,7 @@ sets. Terra, standard is a retrain of the Figure 9 Terra model with
 checkpoints saved, on the same data.
 
 ```bash
-python launch_together_ft.py --model Qwen/Qwen3-14B --suffix da-sonnet-5-refusal \
+python launch_together_ft.py --model Qwen/Qwen3-14B --suffix difficult-advice-sonnet-5-first-refusal \
     --train ../../data/difficult_advice/sonnet-5-first-refusal/train.jsonl \
     --val ../../data/difficult_advice/sonnet-5-first-refusal/val.jsonl \
     --epochs 4 --n-checkpoints 4 --lr 1e-4 --lora-rank 64 --yes
@@ -124,7 +123,7 @@ bash download_adapter.sh <job-id> 42 data/adapters/qwen3-14b-sonnet-5-refusal-ep
 cd ../..
 bash evaluation/agentic_misalignment/eval_qwen3_14b.sh \
     evalrefusal qwen3-14b-refusal \
-    Qwen3-14B-difficult-advice-sonnet-5-original-refusal-2ep__as-qwen__27x100 \
+    Qwen3-14B-difficult-advice-sonnet-5-first-refusal-165-2ep__as-qwen__27x100 \
     data/adapters/qwen3-14b-sonnet-5-refusal-ep2 8311
 ```
 
