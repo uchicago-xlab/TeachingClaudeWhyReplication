@@ -16,13 +16,6 @@ rebuild
 where turn_suffix is derived mechanically (see _derive_suffix). check_render.py
 is what discovers, per family, whether assistant_prefix is needed.
 
-That render-twice mechanism is the thinking-off path only. Training rows whose
-assistant turn keeps its native reasoning (train_sft.py, "render": "native")
-take a different route:
-render_native_training_example builds the trained tokens directly — native
-generation prompt + encoded content + native turn suffix — because Qwen
-templates strip <think> blocks when re-rendering history; see its docstring.
-
 A second, opposite knob is generation_prefill: text the template *does* emit at
 the start of the assistant turn, which we additionally prime at sampling time
 so the model continues from it instead of choosing what to open its turn with.
@@ -45,7 +38,6 @@ so a full render alone cannot distinguish thinking-off from thinking-on for
 Qwen3; only the generation prompt can, which is what check_render.py compares.
 """
 
-import dataclasses
 import re
 
 from transformers import AutoTokenizer
@@ -181,83 +173,6 @@ def derive_stop_strings(tokenizer, family: families.Family) -> list[str]:
     return [stop] if stop else [suffix]
 
 
-def native_view(family: families.Family) -> families.Family:
-    """The family rendered in its template's own default reasoning shape.
-
-    Native = no thinking kwargs and no generation prefill: whatever the
-    vendor's template does when nothing is overridden. Qwen3/Nemotron/Kimi
-    default to thinking ON, gpt-oss to `Reasoning: medium`, Inkling to effort
-    0.9 — and DeepSeek-V3.1 to thinking OFF (its template defaults
-    thinking=false), which the native-CoT eval treats as "no CoT" rather than
-    overriding. Used by the eval's --native-cot variant and by
-    render_native_training_example below — the one training path that keeps
-    reasoning; the thinking-off training path never renders through this view.
-    """
-    return dataclasses.replace(family, thinking_kwargs={}, generation_prefill="")
-
-
-def render_native_training_example(
-    tokenizer, family: families.Family, messages
-) -> tuple[list[int], list[int]]:
-    """Trained tokens for a row whose assistant turn keeps native reasoning.
-
-    Built directly — native generation prompt + encoded content + native turn
-    suffix — rather than through the template's full render. Not because the
-    full render is wrong today: measured, the two agree token for token on both
-    Qwen families. The direct
-    build is chosen because it does not depend on template internals no vendor
-    promises to keep across transformers or template versions, and because it
-    makes the trained prompt *the* sampling prompt by construction rather than
-    by coincidence.
-
-    Scope: exactly one trailing assistant turn. Qwen templates drop <think>
-    blocks from every non-final assistant turn, and messages[:-1] is re-rendered
-    through the template here too, so a multi-turn row would silently
-    lose the reasoning of its earlier turns. Revisit this function before
-    training one; under the standard thinking-off view such a row instead fails
-    loudly, via render_training_example's RenderMismatch.
-
-    The content is the raw sampled text, stop-cut: for a family whose native
-    prompt opens `<think>` it starts mid-reasoning; otherwise it carries its own
-    `<think>…</think>`. check_render.py's --native-training pass is the
-    per-model proof.
-    """
-    assert messages[-1]["role"] == "assistant", "training example ends with the assistant turn"
-    if family.assistant_prefix:
-        raise RenderMismatch(
-            f"family {family.key!r} has assistant_prefix "
-            f"{family.assistant_prefix!r}: the direct native build would silently skip it. "
-            "Extend this function deliberately "
-            "before training one",
-            "", "",
-        )
-    native = native_view(family)
-    prompt = render_generation_prompt(tokenizer, native, messages[:-1])
-    completion = tokenizer.encode(messages[-1]["content"], add_special_tokens=False)
-    full = prompt + completion + _derive_suffix(tokenizer, native)
-    weights = [0] * len(prompt) + [1] * (len(full) - len(prompt))
-    return full, weights
-
-
-_PROBE_MESSAGES = [
-    {"role": "system", "content": "probe"},
-    {"role": "user", "content": "probe"},
-]
-
-
-def generation_prompt_opens_think(tokenizer, family: families.Family) -> bool:
-    """Does this family's generation prompt end inside an unclosed <think>?
-
-    Qwen3.5/3.6 and Nemotron templates prime `<think>\n` when thinking is on,
-    so the sampled text begins mid-reasoning with no opening tag; the provider
-    must restore it before extract_reasoning_and_response, or the reasoning
-    would be read as the final response. Probed mechanically (single-turn
-    system+user, the eval's only shape) instead of hand-declared per family.
-    """
-    text = tokenizer.decode(render_generation_prompt(tokenizer, family, _PROBE_MESSAGES))
-    return text.rfind("<think>") > text.rfind("</think>")
-
-
 # Reasoning spans, per family. Each is written to close on its terminator *or*
 # on end-of-string, because the case these exist for is the sample that ran out
 # of tokens mid-reasoning and therefore never emitted one.
@@ -363,38 +278,3 @@ def extract_response(family: families.Family, text: str) -> str:
         if visible:
             return visible
     return strip_reasoning_spans(family, text)
-
-
-_THINK_CONTENTS = re.compile(r"<think>(.*?)(?:</think>|\Z)", re.S)
-
-
-def _harmony_reasoning(text: str) -> str:
-    # Each span is kept from past its `<|channel|>analysis<|message|>` header:
-    # the channel name is format, and dropping the markers around it would
-    # otherwise glue it to the front of the reasoning ("analysislet me scheme").
-    spans = [m.group(0).split("<|message|>", 1)[-1] for m in _HARMONY_NONFINAL.finditer(text)]
-    cleaned = (_CONTROL_MARKER.sub("", _HARMONY_ROLE.sub("", s)).strip() for s in spans)
-    return "\n\n".join(c for c in cleaned if c)
-
-
-def extract_reasoning_and_response(family: families.Family, text: str) -> tuple[str, str]:
-    """Sampled text -> (reasoning, final response) for the native-CoT eval.
-
-    The final element is exactly extract_response(family, text); the reasoning
-    element is the text extract_response throws away, so the grader can be
-    shown both without the action gates ever seeing the reasoning. A sample
-    truncated mid-reasoning yields (partial reasoning, "") — non-harmful by
-    construction, diagnosable via stop_reason, same policy as
-    strip_reasoning_spans.
-    """
-    if family.key == "gpt_oss":
-        reasoning = _harmony_reasoning(text)
-    elif family.key == "inkling":
-        reasoning = "\n\n".join(
-            body for kind, body in _inkling_blocks(text) if kind == "thinking"
-        )
-    else:
-        reasoning = "\n\n".join(
-            m.group(1).strip() for m in _THINK_CONTENTS.finditer(text) if m.group(1).strip()
-        )
-    return reasoning, extract_response(family, text)

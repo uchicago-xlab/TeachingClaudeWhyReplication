@@ -16,11 +16,7 @@ Two things the provider owes the log, both about truncation:
 
 - what the grader sees never includes reasoning. render.extract_response keeps
   the family's final-answer block; when a sample ran out of tokens before that
-  block existed it returns the reasoning-stripped remainder, usually "". The
-  one exception is the native-CoT variant (-M native_cot=true), where reasoning
-  is carried alongside the answer as ContentReasoning — still outside the
-  message's .text and the output's completion, so the action gates never see
-  it, and only native_cot.py deliberately shows it to the grader.
+  block existed it returns the reasoning-stripped remainder, usually "".
 - the truncation itself stays visible. Tinker reports `length` vs `stop` per
   sequence; that becomes Inspect's `max_tokens` stop reason, so a run whose
   harm rate was deflated by truncated completions can be told apart from a run
@@ -34,8 +30,6 @@ from dotenv import load_dotenv
 from inspect_ai.model import (
     ChatCompletionChoice,
     ChatMessageAssistant,
-    ContentReasoning,
-    ContentText,
     GenerateConfig,
     ModelAPI,
     ModelOutput,
@@ -64,14 +58,13 @@ class TinkerAPI(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         checkpoint: str | None = None,
-        native_cot: bool = False,
         service_client=None,
         **model_args,
     ) -> None:
         if model_args:
             raise TypeError(
                 f"unexpected model args {sorted(model_args)} — the tinker provider takes only "
-                "checkpoint=<tinker://…> and native_cot=<bool> (a mistyped one would evaluate "
+                "checkpoint=<tinker://…> (a mistyped one would evaluate "
                 "the base model while the log claimed a finetune)"
             )
         super().__init__(
@@ -83,27 +76,10 @@ class TinkerAPI(ModelAPI):
         )
         self.sweep_model = families.get_model(model_name)
         render.require_verified(self.sweep_model.family)
-        self.native_cot = bool(native_cot)
-        # In native mode every render (prompt, stop strings, the primed-think
-        # probe) goes through the native view; training-time rendering is
-        # untouched because nothing outside this provider sees the view.
-        self.render_family = (
-            render.native_view(self.sweep_model.family)
-            if self.native_cot
-            else self.sweep_model.family
-        )
         # Tokenizer and stop strings are per-model, not per-request: deriving
         # stop strings costs a render, and the eval issues hundreds of samples.
         self.tokenizer = render.load_tokenizer(self.sweep_model)
-        self.stop_strings = render.derive_stop_strings(self.tokenizer, self.render_family)
-        # Families whose native prompt primes an open `<think>` sample text that
-        # starts mid-reasoning; the tag is restored before extraction so the
-        # reasoning is not read as the response. The probe below decides, not a
-        # hand-list — that is the point of it; qwen3_5/3_6, nemotron and kimi
-        # are what it answers yes for today, and a template edit moves the line.
-        self.think_primed_open = self.native_cot and render.generation_prompt_opens_think(
-            self.tokenizer, self.render_family
-        )
+        self.stop_strings = render.derive_stop_strings(self.tokenizer, self.sweep_model.family)
         self.checkpoint = checkpoint
         if service_client is None:
             service_client = tinker.ServiceClient()
@@ -145,7 +121,7 @@ class TinkerAPI(ModelAPI):
                 "chat templates"
             )
 
-        prompt_ids = render.render_generation_prompt(self.tokenizer, self.render_family, messages)
+        prompt_ids = render.render_generation_prompt(self.tokenizer, self.sweep_model.family, messages)
         max_tokens = config.max_tokens or DEFAULT_MAX_TOKENS
         params = tinker.SamplingParams(
             max_tokens=max_tokens,
@@ -177,16 +153,7 @@ class TinkerAPI(ModelAPI):
             raw = self.tokenizer.decode(tokens)
             for stop in filter(None, params.stop):
                 raw = raw.split(stop)[0]
-            if self.native_cot:
-                restored = ("<think>" if self.think_primed_open else "") + raw
-                reasoning, final = render.extract_reasoning_and_response(
-                    self.render_family, restored
-                )
-                content = ([ContentReasoning(reasoning=reasoning)] if reasoning else []) + [
-                    ContentText(text=final)
-                ]
-            else:
-                content = render.extract_response(self.sweep_model.family, raw)
+            content = render.extract_response(self.sweep_model.family, raw)
             choices.append(
                 ChatCompletionChoice(
                     message=ChatMessageAssistant(

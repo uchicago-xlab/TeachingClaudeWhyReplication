@@ -22,7 +22,7 @@ import os
 
 import torch
 from datasets import load_dataset
-from peft import LoraConfig, PeftModel, get_peft_model
+from peft import LoraConfig, get_peft_model
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import SFTConfig, SFTTrainer
 
@@ -48,14 +48,7 @@ def main():
     ap.add_argument("--test-steps", type=int, default=0,
                     help="also measure test loss every N steps (0 = start "
                          "and end only)")
-    ap.add_argument("--eval-adapter", default=None,
-                    help="no training: load this published stories adapter (Hub "
-                         "id or dir) on the base and measure --test-corpus loss "
-                         "once, writing <out>/test_loss.json (end-state point "
-                         "for a run trained without --test-corpus)")
     args = ap.parse_args()
-    if args.eval_adapter and not args.test_corpus:
-        ap.error("--eval-adapter needs --test-corpus")
 
     do_eval = bool(args.test_corpus)
     # eval_strategy stays "steps" whenever a test set is given so that
@@ -110,24 +103,6 @@ def main():
     # as train/loss and comparable across corpus sizes.
     eval_ds = (load_dataset("json", data_files=args.test_corpus, split="train")
                if do_eval else None)
-
-    if args.eval_adapter:
-        # Post-hoc end-state pass: same packing, same test set, same
-        # per-token loss as the in-run passes, on a published adapter.
-        model = PeftModel.from_pretrained(model, args.eval_adapter)
-        model = model.to(torch.bfloat16)
-        trainer = SFTTrainer(model=model, args=cfg,
-                             train_dataset=ds.select(range(min(8, len(ds)))),
-                             eval_dataset=eval_ds, processing_class=tok)
-        m = trainer.evaluate()
-        trainer.log_metrics("test_adapter", m)
-        if trainer.is_world_process_zero():
-            os.makedirs(args.out, exist_ok=True)
-            with open(os.path.join(args.out, "test_loss.json"), "w") as f:
-                json.dump({"test_corpus": args.test_corpus,
-                           "adapter": args.eval_adapter, "end_state": m},
-                          f, indent=2)
-        return
 
     peft_cfg = LoraConfig(
         r=64, lora_alpha=128, lora_dropout=0.0,

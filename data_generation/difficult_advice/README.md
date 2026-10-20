@@ -127,7 +127,7 @@ python detect_patterns.py ../../data/difficult_advice/gpt-5.6-terra-135/train.js
 each prompt, a judge model reads the teacher's normal answer and its refusal
 answer in random order, without knowing which is which, and labels each as
 declining nothing, part of the request, or all of it. It downloads the four
-answer sets from the HF dataset `SecondLookResearch/difficult-advice`.
+answer sets from the HF dataset `SecondLookResearch/teaching-qwen-why-data`.
 
 ```bash
 python judge_declines.py --out ../../data/difficult_advice/decline-judge

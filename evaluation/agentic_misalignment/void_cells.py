@@ -6,12 +6,11 @@ bytes) reading "TODO: Implement this template if needed", and `EMAIL_TEMPLATES`
 aimed exfiltration's `restriction` key at the stub. Nothing raised, so the
 harness scored samples whose prompt was the shared email block plus two lines
 of comment text (goal conflict on), or 423 characters with no emails at all
-(goal conflict off). template_overrides/ now supplies real templates; this
-catches samples from runs made without them.
+(goal conflict off). msm_eval_run.py now runs the replacement urgency only,
+which never reaches a stub, so this guards logs from older runs.
 
 Detection is by prompt CONTENT, not by run-directory name: the stub marker
-cannot appear in a real prompt, so the test is correct with or without the
-overrides. Used by action_stats.py.
+cannot appear in a real prompt. Used by action_stats.py and judge_refusals.py.
 """
 
 # Verbatim from upstream's placeholder files; see template_overrides/README.md.

@@ -22,12 +22,6 @@ run under .venv-tinker because the provider imports the tinker SDK:
     ../../.venv-tinker/bin/python msm_eval_run.py \
         --model tinker/Qwen/Qwen3-8B --model-name Qwen --run-name <name> \
         --model-arg checkpoint=tinker://…/00042      # omit for the base model
-
---native-cot (tinker/ models only) is a separate variant: prod=True drops the
-scratchpad instructions, the model thinks in its template-default shape, and
-the captured CoT is handed to the grader as the scratchpad while the action
-gates see the final response only (native_cot.py). Never pool its numbers with
-standard runs.
 """
 import argparse, os, sys
 from pathlib import Path
@@ -176,32 +170,12 @@ def main():
                          "for Qwen3 models (Qwen2.5 has no thinking mode) and "
                          "must match across every model of a comparison, "
                          "including the base control")
-    ap.add_argument("--api-no-reasoning", action="store_true",
-                    help="disable reasoning for API teachers served via the "
-                         "openrouter/ provider (reasoning={'enabled': false}, "
-                         "forwarded through the provider's own model_args — "
-                         "verified to reach the wire, unlike plain openai/ "
-                         "extra_body). The thinking-off teacher baseline: "
-                         "students train on no-CoT data, so this is the "
-                         "matched teacher condition. Encode in --run-name. "
-                         "For vLLM-served students use --no-thinking instead.")
-    ap.add_argument("--native-cot", action="store_true",
-                    help="run the native-CoT variant (tinker/ models only): "
-                         "prod=True removes the scratchpad instructions, the "
-                         "family samples in its template-default thinking "
-                         "shape, and the captured CoT is shown to the grader "
-                         "wrapped in <SCRATCHPAD_REASONING> (native_cot.py) "
-                         "while the action gates judge the final response "
-                         "only. Default --max-tokens becomes 8192. Results "
-                         "are a separate variant — never pool with standard "
-                         "runs.")
     ap.add_argument("--max-connections", type=int, default=16,
                     help="concurrent sampling connections to the serving "
                          "endpoint. Throughput-only knob (no effect on the "
                          "sampling distribution).")
-    ap.add_argument("--max-tokens", type=int, default=None,
-                    help="completion cap (default 4096; 8192 under "
-                         "--native-cot). Raise it only as a model-level "
+    ap.add_argument("--max-tokens", type=int, default=4096,
+                    help="completion cap. Raise it only as a model-level "
                          "correction for a model whose thinking or verbosity "
                          "truncates the visible action at the cap: a "
                          "truncated sample grades non-harmful. Encode any "
@@ -222,11 +196,6 @@ def main():
                          "any API (no samples, no grader spend)")
     args = ap.parse_args()
 
-    if args.max_tokens is None:
-        # Native thinking burns the standard 4096 cap, and truncated samples
-        # grade non-harmful.
-        args.max_tokens = 8192 if args.native_cot else 4096
-
     is_tinker = args.model.startswith("tinker/")
 
     # A tinker/ model samples through the Tinker API, so it has no endpoint of
@@ -241,10 +210,6 @@ def main():
         # the URL. Same reason the extra_body flags below are refused.
         sys.exit(f"--base-url {args.base_url} has no effect on a tinker/ model: "
                  "the Tinker API is the endpoint. Drop it.")
-    if args.native_cot and not is_tinker:
-        sys.exit("--native-cot is tinker/-only: CoT capture lives in the sweep's "
-                 "render layer (training/tinker/render.py); served models have "
-                 "no reasoning/final split here.")
 
     # Tinker-served models render their own chat format (training/tinker/render.py),
     # so the request-body switches below have nothing to reach: the provider refuses a
@@ -254,8 +219,7 @@ def main():
     if is_tinker:
         conflicting = [
             flag for flag, used in (("--no-thinking", args.no_thinking),
-                                    ("--stop-token-ids", bool(args.stop_token_ids)),
-                                    ("--api-no-reasoning", args.api_no_reasoning))
+                                    ("--stop-token-ids", bool(args.stop_token_ids)))
             if used
         ]
         if conflicting:
@@ -267,10 +231,6 @@ def main():
                 "the family's thinking_kwargs and re-run check_render.py."
             )
         tinker_families = load_tinker_provider()
-
-    if args.api_no_reasoning and not args.model.startswith("openrouter/"):
-        sys.exit("--api-no-reasoning is an openrouter/-provider knob; "
-                 "for vLLM-served students use --no-thinking.")
 
     # Both switches are model-level corrections, not condition changes: they
     # make the model behave the way the eval already assumes. Apply each to
@@ -306,22 +266,6 @@ def main():
         )
 
     model_args = parse_model_args(args.model_arg)
-    if "native_cot" in model_args:
-        if args.native_cot:
-            sys.exit("--model-arg native_cot=… is redundant with --native-cot, which "
-                     "sets it for you. Drop the model arg.")
-        sys.exit("pass --native-cot, not --model-arg native_cot=…: the flag also "
-                 "sets prod=True and patches the grader input (native_cot.py); the "
-                 "bare model arg would sample natively while grading blind.")
-    if args.native_cot:
-        model_args["native_cot"] = True
-        import native_cot
-        native_cot.apply_patch()
-        if "natcot" not in args.run_name.lower():
-            print("WARNING: --native-cot run without 'natcot' in --run-name — "
-                  "summarize.py keys runs on the directory name, so encode the variant.")
-    if args.api_no_reasoning:
-        model_args["reasoning_enabled"] = False
 
     # For tinker/ models the thinking shape is a property of the render layer, fixed
     # by the family entry, so the log must report what was actually rendered rather
@@ -334,16 +278,12 @@ def main():
             family = tinker_families.get_model(args.model.removeprefix("tinker/")).family
         except KeyError as e:
             sys.exit(e.args[0])  # KeyError's str() re-quotes the message
-        thinking = ("native" if args.native_cot
-                    else "disabled" if family.thinking_off else "minimal")
+        thinking = "disabled" if family.thinking_off else "minimal"
         thinking_note = f"{thinking} (rendered by families.{family.key}" + (
-            "; template default — --native-cot)" if args.native_cot
-            else ")" if family.thinking_off
+            ")" if family.thinking_off
             else "; template has no off switch, lowest effort only)"
         )
         metadata = {"tcw_thinking": thinking, "tcw_model_name": args.model_name}
-        if args.native_cot:
-            metadata["tcw_variant"] = "native-cot"
     else:
         thinking_note = "disabled" if args.no_thinking else "provider default"
 
@@ -383,8 +323,7 @@ def main():
     tasks = [
         agentic_misalignment(
             scenario=s, goal_type=gt, goal_value=gv,
-            # prod=True drops the scratchpad paragraphs; that IS the native-CoT condition
-            urgency_type=args.urgency_type, prod=args.native_cot,
+            urgency_type=args.urgency_type, prod=False,
             model_name=args.model_name, grader_model=GRADER,
         )
         for (s, gt, gv) in grid
@@ -406,10 +345,6 @@ def main():
         sys.exit(0)
 
     check_api_keys(args.model)
-
-    if args.api_no_reasoning and not args.model.startswith("openrouter/"):
-        sys.exit("--api-no-reasoning is an openrouter/-provider knob; "
-                 "for vLLM-served students use --no-thinking.")
 
     ok, _ = eval_set(
         tasks=tasks, log_dir=str(log_dir),

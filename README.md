@@ -79,7 +79,7 @@ use hyphens; code and file names use underscores.
 | `training/tinker/` | The teacher comparison on five larger open models with Tinker (Appendix C.3). |
 | `training/together/` | Together AI finetuning for the Qwen3-14B experiments (Appendices B.1 and B.2). |
 | `evaluation/agentic_misalignment/` | Serves a trained model and runs the agentic-misalignment eval. |
-| `figures/` | Redraws every plotted figure and prints Table 1. |
+| `figures/` | Redraws every plotted figure and prints Table 4. |
 
 Each folder has its own README with the details.
 
@@ -145,15 +145,17 @@ Training commands are in `training/fsdp/README.md`, eval commands in
 | Figure 3: teachers | `generate_stories.py` + `build_corpus.py` per teacher; difficult advice from Sonnet 5 and Terra, 1,000 each | `stories_launch.sh`; `difficult_advice_launch.sh` | `eval_models.sh` | `plot_results.py 3` |
 | Figure 4: embodiment vs recitation | `generate_stories.py --framing recitation` (use the released corpora, see `data_generation/stories/README.md`) | `stories_launch.sh` | `eval_models.sh` | `plot_results.py 4` |
 | Figure 5: address names | — (baseline) | — | `eval_models.sh` with names | `plot_results.py 5` |
-| Figure 6, Table 1: human protagonist and human persona | `rewrite_stories.py --variant human` | `stories_launch.sh` | `eval_models.sh`, `EVAL_PERSONA=human` | `plot_results.py 6 table1` |
+| Figure 6, Table 4: human protagonist and human persona | `rewrite_stories.py --variant human` | `stories_launch.sh` | `eval_models.sh`, `EVAL_PERSONA=human` | `plot_results.py 6 table4` |
 | Figure 7: named protagonist | `rewrite_stories.py --variant claude / qwen` | `stories_launch.sh` | `eval_models.sh` (as Alex and Qwen) | `plot_results.py 7` |
 | Figure 9: teachers on Qwen3-14B | difficult-advice pipeline per teacher (`first-*` and `deepseek` prompt sets) | `training/together/` | `eval_qwen3_14b.sh` | `plot_results.py 9` |
 | Figure 10: refusal data | `refusal` prompt set, `subset_prompts.py` | — | `judge_declines.py` | `plot_results.py 10` |
 | Figure 11: refusal control | as Figure 10 | `training/together/` | `eval_qwen3_14b.sh`, `judge_refusals.py` | `plot_results.py 11` |
 | Figure 12: prompts vs responses | responses-only mode of the pipeline on swapped prompt sets, 135 each | `example_difficult_advice_grid.sh` | `eval_models.sh`, 27x10 | `plot_results.py 12` |
-| Figure 13: per-condition breakdown | as Figure 4 | as Figure 4 | as Figure 4 | `plot_results.py 13` |
-| Figure 14: data size vs steps | Terra 135 and 285 sets | `example_difficult_advice_grid.sh` (`EPOCHS="5 10 20"`) | `eval_models.sh`, 27x10 | `plot_results.py 14` |
-| Figure 15: larger models | Sonnet 5 and Terra difficult advice (first version) | `training/tinker/` | `training/tinker/run_model.py` | `plot_results.py 15` |
+| Figure 13: Figure 1 by scenario | as Figure 1 | as Figure 1 | as Figure 1 | `plot_results.py 13` |
+| Figure 14: Figure 4 by goal and scenario | as Figure 4 | as Figure 4 | as Figure 4 | `plot_results.py 14` |
+| Figure 15: Figure 3 by scenario | as Figure 3 | as Figure 3 | as Figure 3 | `plot_results.py 15` |
+| Figure 16: data size vs steps | Terra 135 and 285 sets | `example_difficult_advice_grid.sh` (`EPOCHS="5 10 20"`) | `eval_models.sh`, 27x10 | `plot_results.py 16` |
+| Figure 17: larger models | Sonnet 5 and Terra difficult advice (first version) | `training/tinker/` | `training/tinker/run_model.py` | `plot_results.py 17` |
 
 Figure 8 is a diagram of the difficult-advice pipeline.
 
@@ -174,7 +176,7 @@ write Inspect logs to `data/eval_logs/`; `export_scores.py` adds them to the tab
   recipe our instruct mix follows.
 - **Agentic Misalignment** (Anthropic): the scenarios that evaluation implements.
 - Instruct-mix sources: No Robots, the Tülu 3 SFT mixture and SmolTalk
-  (Table 4 of the post; `data_generation/instruct_mix/mix.json`).
+  (Table 3 of the post; `data_generation/instruct_mix/mix.json`).
 
 ## Citation
 

@@ -1,15 +1,15 @@
-"""The figures of the blog post "Teaching Qwen Why", and its Table 1.
+"""The figures of the blog post "Teaching Qwen Why", and its Table 4.
 
-    python figures/plot_results.py [1 2 ... 15]    # no argument: every figure
-    python figures/plot_results.py table1
+    python figures/plot_results.py [1 2 ... 17]    # no argument: every figure
+    python figures/plot_results.py table4
 
 Figures are written to figures/output/figure_NN.png, numbered as in the post
 (Figure 8 is a diagram and is not plotted here):
 
-     1  misalignment by scenario: baseline / stories / difficult advice /
-        stories + difficult advice, Qwen2.5-32B above and Qwen2.5-72B below
-     2  the two scaling ladders: story tokens above, difficult-advice tokens below
-     3  who wrote the data: story writers above, difficult-advice writers below
+     1  overall misalignment: baseline / stories / difficult advice /
+        stories + difficult advice, Qwen2.5-32B and Qwen2.5-72B on one axis
+     2  data size: the story and difficult-advice ladders on one token axis
+     3  who wrote the data: story teachers and difficult-advice teachers
      4  stories that show ("embodiment") vs stories that tell ("recitation")
      5  seven address names on the baseline model (AI vs human names)
      6  human-protagonist stories as a reduction-from-baseline heatmap
@@ -18,9 +18,11 @@ Figures are written to figures/output/figure_NN.png, numbered as in the post
     10  refusal control: how often the training answers decline (Appendix B.2)
     11  refusal control: the trained Qwen3-14B models on the eval (Appendix B.2)
     12  difficult advice, model that wrote the prompts x model that wrote the responses
-    13  the story runs broken down by goal and by scenario
-    14  difficult advice: dataset size x epochs against optimizer steps
-    15  difficult advice transferred to five large open models (Appendix C.3)
+    13  Figure 1 by scenario (Appendix C.1)
+    14  Figure 4 by goal and by scenario (Appendix C.1)
+    15  Figure 3 by scenario (Appendix C.1)
+    16  difficult advice: dataset size x epochs against optimizer steps (Appendix C.2)
+    17  difficult advice transferred to five large open models (Appendix C.3)
 
 Eval results are read from the score tables in data/eval_scores/
 (conditions.csv and samples.csv, written by
@@ -35,7 +37,7 @@ Conventions:
     so every rate is an EQUAL-WEIGHT mean over conditions, never a sample pool
     (see rate());
   * error bars are 95% binomial intervals on that mean, except Figures 9-11
-    and 15, which show +-1 standard error;
+    and 17, which show +-1 standard error;
   * decimals, not percents; Title Case value axis; Charter serif; bars
     without outlines; no captions baked in (they live in the post);
   * colours from palette.py; a paired control condition (recitation, the
@@ -310,14 +312,6 @@ def _draw_grouped(ax, series, legend="box"):
                   labelspacing=0.45, handletextpad=0.6)
 
 
-def _grouped_by_scenario(series, fname, legend="box"):
-    """One grouped-by-scenario panel written to its own file (see _draw_grouped)."""
-    fig, ax = plt.subplots(figsize=(9.2, 3.9))
-    _draw_grouped(ax, series, legend)
-    fig.tight_layout()
-    write(fig, fname)
-
-
 # ------------------------------------------------------------------ Figure 1
 
 # Four interventions on the same model, all 27x100 as Alex: nothing (baseline),
@@ -351,9 +345,37 @@ STACK72 = [("Baseline", lambda: cells("Qwen2.5-72B-instruct-mix__as-alex__27x100
             NAVY)]
 
 
+def fig_stack_overall():
+    """Figure 1: overall misalignment of the four interventions, both models
+    on one axis. The difficult-advice amount differs between the models and
+    is stated under each group."""
+    groups = [("Qwen2.5-32B\n(14M story tokens, 3,000 difficult-advice samples)", STACK),
+              ("Qwen2.5-72B\n(14M story tokens, 1,000 difficult-advice samples)", STACK72)]
+    k, w = len(STACK), 0.18
+    fig, ax = plt.subplots(figsize=(8.0, 4.2))
+    for j in range(k):
+        label, _, colour = STACK[j][:3]
+        xs, ps, es = [], [], []
+        for gi, (_, series) in enumerate(groups):
+            p, e = rate(series[j][1]())
+            xs.append(gi + (j - (k - 1) / 2) * w); ps.append(p); es.append(e)
+        ax.bar(xs, ps, w, color=shade(colour), linewidth=0, label=label)
+        ax.errorbar(xs, ps, yerr=es, color=INK, capsize=2.5, lw=0.9, ls="none")
+        for xx, p, e in zip(xs, ps, es):
+            ax.text(xx, p + e + 0.012, f"{p:.2f}", ha="center", fontsize=10)
+    ax.set_xticks(range(len(groups)), [g for g, _ in groups])
+    ax.tick_params(axis="x", length=0)
+    ax.set_xlim(-0.5, len(groups) - 0.5)
+    bar_axis(ax, 0.8)
+    ax.legend(frameon=False, ncol=k, loc="lower center", bbox_to_anchor=(0.5, 1.01),
+              columnspacing=1.4, handletextpad=0.5, borderaxespad=0.2)
+    fig.tight_layout()
+    write(fig, "figure_01.png")
+
+
 def fig_stack_both():
-    """Figure 1: Qwen2.5-32B on top, Qwen2.5-72B below. One legend, on the
-    top panel."""
+    """Figure 13 (Appendix C.1): Figure 1 by scenario, Qwen2.5-32B on top,
+    Qwen2.5-72B below. One legend, on the top panel."""
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9.2, 8.2))
     _draw_grouped(ax1, STACK, legend="none")
     _draw_grouped(ax2, STACK72, legend="none")
@@ -365,7 +387,7 @@ def fig_stack_both():
         ax.text(0.0, 1.03, name, transform=ax.transAxes, ha="left", va="bottom",
                 fontsize=13, fontweight="bold", color=INK)
     fig.tight_layout(h_pad=2.6)
-    write(fig, "figure_01.png")
+    write(fig, "figure_13.png")
 
 
 # ------------------------------------------------------------------ Figure 2
@@ -377,7 +399,7 @@ LADDER_RUN = {r: story_run("gpt-5.4-nano", size="" if r == "14M" else r.lower())
 # Unique story tokens per rung, from the ladder corpus manifest.
 LADDER_TOKENS = {"3M": 3_001_105, "14M": 13_999_156, "28M": 27_998_799,
                  "56M": 55_996_898, "112M": 111_994_101}
-BASE_X = 1_000_000                  # where the 0M point sits on the log axis
+BASE_X = 250_000                    # where the baseline ("0") sits on the log axis
 
 
 def _ladder_axis(ax, ticks, labels, xlim, xlabel, ylabel):
@@ -413,74 +435,51 @@ def _points(ax, xs, ys, es, colour, dy, ms=8.5, name=None):
                         fontsize=9.5, color=INK2)
 
 
-def _draw_ladder(ax):
-    """The story scaling panel: misalignment rate per rung against unique
-    story tokens (log axis), 0M = the baseline in grey, 95% intervals,
-    points only. Returns (rates, baseline)."""
-    tokens = LADDER_TOKENS
-    rates = {}
-    for r in RUNGS:
-        c = cells(LADDER_RUN[r])
-        if len(c) == 27:
-            rates[r] = rate(c)
-        else:
-            print(f"  {r}: {len(c)}/27 conditions scored - skipped")
-    b_rate, b_ci = rate(first_n_cells(BASELINE["Alex"]))
-    rs = [r for r in RUNGS if r in rates]
-    _points(ax, [BASE_X], [b_rate], [b_ci], shade(GREY), 2, name="Baseline")
-    _points(ax, [tokens[r] for r in rs], [rates[r][0] for r in rs],
-            [rates[r][1] for r in rs], shade(BLUE), 2)
-    _ladder_axis(ax, [BASE_X] + [tokens[r] for r in RUNGS], ["0M"] + RUNGS,
-                 (BASE_X / 1.6, 300e6), "SDF Tokens", YLABEL)
-    ax.set_ylim(0, 0.7)
-    ax.yaxis.set_major_formatter(lambda v, _: f"{v:.1f}")
-    return rates, (b_rate, b_ci)
-
-
 # Difficult-advice scaling ladder: one epoch of nested subsets of the 3,000
 # GPT-5.6 Terra samples, a fresh adapter over the baseline model, as Alex.
-# Tokens are the trained token counts (chat template, packed).
+# Tokens are total tokens per rung, prompts included (chat template).
 # {samples: (tokens, run)}
 DIFFICULT_ADVICE_RUNGS = {
     s: (tok, f"Qwen2.5-32B-instruct-mix-difficult-advice-gpt-5.6-terra-{n}-1ep__as-alex__27x100")
     for s, n, tok in (("500", 500, 674_200), ("1,000", 1000, 1_323_000),
                       ("2,000", 2000, 2_649_000), ("3,000", 3000, 3_990_000))}
-DIFFICULT_ADVICE_BASE_X = 250_000   # where the 0M point sits on the log axis
-
-
-def _draw_difficult_advice_ladder(ax):
-    """The difficult-advice scaling panel: misalignment rate against
-    difficult-advice tokens trained on (log axis), one epoch each; 0M = the
-    baseline with no difficult advice, in grey. 95% intervals. Same y range
-    as the story panel so the two read together."""
-    xs, ps, es = [], [], []
-    for samples, (tok, run) in DIFFICULT_ADVICE_RUNGS.items():
-        c = cells(run) if has_run(run) else {}
-        if len(c) == 27:
-            p, e = rate(c)
-            xs.append(tok); ps.append(p); es.append(e)
-        else:
-            print(f"  {samples} samples: no complete run - skipped")
-    b_rate, b_ci = rate(first_n_cells(BASELINE["Alex"]))
-    _points(ax, [DIFFICULT_ADVICE_BASE_X], [b_rate], [b_ci], shade(GREY), 2, name="Baseline")
-    _points(ax, xs, ps, es, shade(OPENAI), 2)
-    toks = [v[0] for v in DIFFICULT_ADVICE_RUNGS.values()]
-    _ladder_axis(ax, [DIFFICULT_ADVICE_BASE_X] + toks,
-                 ["0M"] + [f"{t / 1e6:.1f}M" for t in toks],
-                 (DIFFICULT_ADVICE_BASE_X / 1.5, 6.5e6), "Difficult Advice Tokens", YLABEL)
-    ax.set_ylim(0, 0.7)
-    ax.yaxis.set_major_formatter(lambda v, _: f"{v:.1f}")
 
 
 def fig_scaling():
-    """Figure 2: the two scaling ladders stacked, stories above, difficult
-    advice below, each on its own token axis, same y range."""
-    fig, (ax1, ax2) = plt.subplots(2, 1, sharey=True, figsize=(6.6, 7.8))
-    _draw_ladder(ax1)
-    _draw_difficult_advice_ladder(ax2)
-    ax1.set_title("Stories", fontsize=11.5, loc="left", pad=6)
-    ax2.set_title("Difficult Advice", fontsize=11.5, loc="left", pad=6)
-    fig.tight_layout(h_pad=1.8)
+    """Figure 2: misalignment against training tokens (log axis) for the
+    story ladder and the difficult-advice ladder, both starting from the
+    shared baseline, drawn at the left as "0". Dashed lines join the measured
+    points of each series. 95% intervals."""
+    s_x, s_p, s_e = [], [], []
+    for r in RUNGS:
+        c = cells(LADDER_RUN[r])
+        if len(c) == 27:
+            p, e = rate(c); s_x.append(LADDER_TOKENS[r]); s_p.append(p); s_e.append(e)
+        else:
+            print(f"  stories {r}: {len(c)}/27 conditions scored - skipped")
+    d_x, d_p, d_e = [], [], []
+    for samples, (tok, run) in DIFFICULT_ADVICE_RUNGS.items():
+        c = cells(run) if has_run(run) else {}
+        if len(c) == 27:
+            p, e = rate(c); d_x.append(tok); d_p.append(p); d_e.append(e)
+        else:
+            print(f"  difficult advice {samples} samples: no complete run - skipped")
+    b_p, b_e = rate(first_n_cells(BASELINE["Alex"]))
+    fig, ax = plt.subplots(figsize=(8.4, 4.4))
+    for xs, ps, colour, label in ((s_x, s_p, BLUE, "Stories (SDF, written by GPT-5.4 nano)"),
+                                  (d_x, d_p, OPENAI, "Difficult advice (SFT, written by GPT-5.6 Terra)")):
+        ax.plot([BASE_X] + xs, [b_p] + ps, "--", color=shade(colour), lw=1.1, dashes=(4, 3),
+                alpha=0.45, zorder=2, label=label)
+    _points(ax, [BASE_X], [b_p], [b_e], shade(GREY), 2, name="Baseline")
+    _points(ax, s_x, s_p, s_e, shade(BLUE), 2)
+    _points(ax, d_x, d_p, d_e, shade(OPENAI), 2)
+    ticks = [BASE_X, 0.5e6, 1e6, 2e6, 5e6, 10e6, 20e6, 50e6, 100e6]
+    _ladder_axis(ax, ticks, ["0", "0.5M", "1M", "2M", "5M", "10M", "20M", "50M", "100M"],
+                 (BASE_X / 1.6, 220e6), "Training Tokens (log scale)", YLABEL)
+    ax.set_ylim(0, 0.75)
+    ax.yaxis.set_major_formatter(lambda v, _: f"{v:.1f}")
+    ax.legend(frameon=False, loc="upper right", handlelength=1.8)
+    fig.tight_layout()
     write(fig, "figure_02.png")
 
 
@@ -508,9 +507,39 @@ TEACHERS = [("Baseline", lambda: first_n_cells(BASELINE["Alex"]), GREY),
                            "__as-alex__27x100"), OPENAI)]
 
 
+def fig_teachers_overall():
+    """Figure 3: overall misalignment by teacher, both data formats on one
+    axis: story teachers (14M tokens each) on the left, difficult-advice
+    teachers (1,000 samples, about 1M trained tokens each) on the right. A
+    teacher keeps its colour in both groups."""
+    groups = [("Fictional stories (SDF, 14M tokens)", _generator_series()),
+              ("Difficult advice (SFT, 1M tokens)", TEACHERS)]
+    w = 0.15
+    fig, ax = plt.subplots(figsize=(8.0, 4.2))
+    seen = set()
+    for gi, (_, series) in enumerate(groups):
+        k = len(series)
+        for j, (label, load, colour, *rest) in enumerate(series):
+            p, e = rate(load())
+            x = gi + (j - (k - 1) / 2) * w
+            fill = blend(colour, SURFACE, LIGHTER) if rest else shade(colour)
+            ax.bar(x, p, w, color=fill, linewidth=0, label=None if label in seen else label)
+            seen.add(label)
+            ax.errorbar(x, p, yerr=e, color=INK, capsize=2.5, lw=0.9, ls="none")
+            ax.text(x, p + e + 0.012, f"{p:.2f}", ha="center", fontsize=10)
+    ax.set_xticks(range(len(groups)), [g for g, _ in groups])
+    ax.tick_params(axis="x", length=0)
+    ax.set_xlim(-0.55, len(groups) - 0.45)
+    bar_axis(ax, 0.8)
+    ax.legend(frameon=False, ncol=5, loc="lower center", bbox_to_anchor=(0.5, 1.01),
+              columnspacing=1.2, handletextpad=0.5, borderaxespad=0.2)
+    fig.tight_layout()
+    write(fig, "figure_03.png")
+
+
 def fig_generators_teachers():
-    """Figure 3: top, who wrote the fictional stories; bottom, who wrote the
-    difficult advice. Each panel says in words what the data was and what
+    """Figure 15 (Appendix C.1): Figure 3 by scenario. Top, who wrote the
+    fictional stories; bottom, who wrote the difficult advice. Each panel says in words what the data was and what
     the legend names, since the same model names play different roles."""
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(9.2, 8.2))
     _draw_grouped(ax1, _generator_series(), legend="top")
@@ -522,24 +551,38 @@ def fig_generators_teachers():
         ax.text(0.0, 1.21, title, transform=ax.transAxes, ha="left", va="bottom",
                 fontsize=11.5, fontweight="bold", color=INK)
     fig.tight_layout(h_pad=3.2)
-    write(fig, "figure_03.png")
+    write(fig, "figure_15.png")
 
 
 # ------------------------------------------------------------------ Figure 4
 
 def fig_showtell():
-    """Figure 4: embodiment ("show") vs recitation ("tell") within each
-    story writer, by scenario plus Overall. Coloured by lab; show is the
-    solid bar and tell the lighter partner of the same colour."""
+    """Figure 4: overall misalignment for embodiment ("show") and recitation
+    ("tell") stories. The baseline, then a Show / Tell pair per story
+    writer, each bar named under it and the writer under its pair, so there
+    is no legend. Show is the lab colour, tell its lighter fill."""
     runs = load_story_runs()
-    series = [("Baseline", "baseline", GREY),
-              ("Sonnet 5 Show", "sonnet-5", ANTHROPIC),
-              ("Sonnet 5 Tell", "sonnet-5-recitation", ANTHROPIC, LIGHT),
-              ("GPT-5.4 Nano Show", "gpt-5.4-nano", OPENAI),
-              ("GPT-5.4 Nano Tell", "gpt-5.4-nano-recitation", OPENAI, LIGHT)]
-    series = [(label, (lambda key=key: runs[key]), *rest)
-              for label, key, *rest in series if len(runs.get(key, {})) == 27]
-    _grouped_by_scenario(series, "figure_04.png", legend="top")
+    w = 0.38
+    bars = [(0.0, "Baseline", "baseline", shade(GREY)),
+            (1.0 - w / 2, "Show", "sonnet-5", shade(ANTHROPIC)),
+            (1.0 + w / 2, "Tell", "sonnet-5-recitation", blend(ANTHROPIC, SURFACE, LIGHTER)),
+            (2.0 - w / 2, "Show", "gpt-5.4-nano", shade(OPENAI)),
+            (2.0 + w / 2, "Tell", "gpt-5.4-nano-recitation", blend(OPENAI, SURFACE, LIGHTER))]
+    fig, ax = plt.subplots(figsize=(6.4, 4.2))
+    for x, name, key, colour in bars:
+        p, e = rate(runs[key])
+        ax.bar(x, p, w, color=colour, linewidth=0)
+        ax.errorbar(x, p, yerr=e, color=INK, capsize=2.5, lw=0.9, ls="none")
+        ax.text(x, p + e + 0.012, f"{p:.2f}", ha="center", fontsize=10)
+    ax.set_xticks([b[0] for b in bars], [b[1] for b in bars])
+    ax.tick_params(axis="x", length=0)
+    for x, writer in ((1.0, "Claude Sonnet 5"), (2.0, "GPT-5.4 Nano")):
+        ax.text(x, -0.09, writer, transform=ax.get_xaxis_transform(), ha="center",
+                va="top", fontsize=11.5, color=INK)
+    ax.set_xlim(-0.5, 2.5)
+    bar_axis(ax, 0.8)
+    fig.tight_layout()
+    write(fig, "figure_04.png")
 
 
 # ------------------------------------------------------------------ Figure 5
@@ -691,8 +734,8 @@ def fig_named_heat():
     _story_heatmap(NAMED_COLS, "figure_07.png", figsize=(10.2, 5.0))
 
 
-def table1():
-    """Table 1: misalignment (%) per scenario over the 8 goal-conflict
+def table4():
+    """Table 4 (Appendix C.1): misalignment (%) per scenario over the 8 goal-conflict
     conditions (goal != none), and the overall equal-weight mean over all 27
     conditions, for the Figure 6 runs, evaluated as Alex and as Sam (human
     persona)."""
@@ -915,7 +958,7 @@ def fig_prompt_response():
                   f"(n={int(sum(v[1] for v in c.values()))}, {len(c)} conditions)")
 
 
-# ------------------------------------------------------------------ Figure 13
+# ------------------------------------------------------------------ Figure 14
 
 FIVE = [("no SDF", "baseline", lambda: shade(GREY)),
         ("Sonnet 5 embodiment", "sonnet-5", lambda: shade(ANTHROPIC)),
@@ -925,9 +968,9 @@ FIVE = [("no SDF", "baseline", lambda: shade(GREY)),
 
 
 def fig_breakdown():
-    """Figure 13: the five story runs broken down by goal (top, averaged over
-    the three scenarios) and by scenario (bottom, averaged over the nine
-    goals). The bottom panel is a bit under half the width, with the legend
+    """Figure 14 (Appendix C.1): Figure 4 broken down by goal (top, averaged
+    over the three scenarios) and by scenario (bottom, averaged over the
+    nine goals). The bottom panel is a bit under half the width, with the legend
     in the space beside it. 95% intervals."""
     runs = load_story_runs()
     fig = plt.figure(figsize=(10.5, 8.2))
@@ -951,10 +994,10 @@ def fig_breakdown():
     handles, labels = top.get_legend_handles_labels()
     leg.legend(handles, labels, frameon=False, loc="center", handletextpad=0.6,
                labelspacing=0.9, fontsize=11)
-    write(fig, "figure_13.png")
+    write(fig, "figure_14.png")
 
 
-# ------------------------------------------------------------------ Figure 14
+# ------------------------------------------------------------------ Figure 16
 
 # Data size x epochs: the same GPT-5.6 Terra difficult advice at two dataset
 # sizes, trained for different numbers of epochs so the two meet at matched
@@ -972,8 +1015,8 @@ DIFFICULT_ADVICE_STEPS = [
 
 
 def fig_difficult_advice_steps():
-    """Figure 14: misalignment rate against optimizer steps (log axis), one
-    line per dataset size, each point labelled with its rate. Points at the
+    """Figure 16 (Appendix C.2): misalignment rate against optimizer steps
+    (log axis), one line per dataset size, each point labelled with its rate. Points at the
     same step count are nudged apart so both intervals show. 95% intervals,
     270 samples per point."""
     fig, ax = plt.subplots(figsize=(6.8, 4.1))
@@ -1009,10 +1052,10 @@ def fig_difficult_advice_steps():
               edgecolor="#cfcfca", loc="upper right", borderpad=0.6,
               labelspacing=0.45, handletextpad=0.4)
     fig.tight_layout()
-    write(fig, "figure_14.png")
+    write(fig, "figure_16.png")
 
 
-# ------------------------------------------------------------------ Figure 15
+# ------------------------------------------------------------------ Figure 17
 
 # Appendix C.3: teacher transfer to large open models, trained and evaluated
 # on Tinker (training/tinker), 180 samples per model on the 6-condition slice,
@@ -1045,7 +1088,7 @@ TINKER_MODELS = [("DeepSeek-V3.1", "DeepSeek\nV3.1"), ("Qwen3.6-27B", "Qwen3.6\n
 
 
 def fig_tinker_transfer():
-    """Figure 15 (Appendix C.3): instruct model / Sonnet 5 data / GPT-5.6
+    """Figure 17 (Appendix C.3): instruct model / Sonnet 5 data / GPT-5.6
     Terra data for five large models, stacked. Top, misalignment over all
     transcripts; bottom, misalignment among transcripts where the model
     acted, computed from the statistics as harm / acted (so samples graded
@@ -1076,29 +1119,30 @@ def fig_tinker_transfer():
     fig.legend(handles, labels, frameon=False, ncol=3, loc="upper center",
                bbox_to_anchor=(0.5, 1.0))
     fig.tight_layout(h_pad=2.5, rect=(0, 0, 1, 0.965))
-    write(fig, "figure_15.png")
+    write(fig, "figure_17.png")
 
 
 # ------------------------------------------------------------------ driver
 
-FIGURES = {1: fig_stack_both, 2: fig_scaling, 3: fig_generators_teachers,
+FIGURES = {1: fig_stack_overall, 2: fig_scaling, 3: fig_teachers_overall,
            4: fig_showtell, 5: fig_namesweep, 6: fig_human_heat, 7: fig_named_heat,
            9: fig_teachers_14b, 10: fig_refusal_data, 11: fig_refusal_results,
-           12: fig_prompt_response, 13: fig_breakdown, 14: fig_difficult_advice_steps,
-           15: fig_tinker_transfer}
+           12: fig_prompt_response, 13: fig_stack_both, 14: fig_breakdown,
+           15: fig_generators_teachers, 16: fig_difficult_advice_steps,
+           17: fig_tinker_transfer}
 
 
 def main():
     picks = sys.argv[1:]
-    if picks == ["table1"]:
-        table1()
+    if picks == ["table4"]:
+        table4()
         return
     try:
         nums = [int(p) for p in picks] or list(FIGURES)
     except ValueError:
         nums = None
     if nums is None or any(n not in FIGURES for n in nums):
-        raise SystemExit(f"usage: plot_results.py [table1 | figure numbers from {list(FIGURES)}]")
+        raise SystemExit(f"usage: plot_results.py [table4 | figure numbers from {list(FIGURES)}]")
     for n in nums:
         FIGURES[n]()
 

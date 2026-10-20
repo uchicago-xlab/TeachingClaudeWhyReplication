@@ -24,8 +24,7 @@ CHATML = (
     "{%- if add_generation_prompt %}{{ '<|im_start|>assistant\n' }}{%- endif %}"
 )
 
-IM_START = 151644     # <|im_start|> — Qwen2.5 ids; use terminator_ids(tok) when possible
-IM_END = 151645       # <|im_end|>  — ChatML end-of-turn
+IM_END = 151645       # <|im_end|>  — ChatML end-of-turn; Qwen2.5 ids, use terminator_ids(tok) when possible
 ENDOFTEXT = 151643    # <|endoftext|> — base eos; kept as a stop for safety
 
 TOKENS = ("<|im_start|>", "<|im_end|>", "<|endoftext|>")

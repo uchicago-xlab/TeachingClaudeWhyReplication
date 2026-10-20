@@ -41,11 +41,8 @@ BLUE = "#6A97C4"    # light slate blue — first generic series
 NAVY = "#2F4C75"    # deep blue        — second; dark partner to BLUE
 SAGE = "#8DB597"    # light grey-green — third
 FOREST = "#3F6B4C"  # deep green       — fourth; dark partner to SAGE
-GREY = "#9A9A96"    # baselines, reference lines, "no SDF"
+GREY = "#9A9A96"    # baselines and reference lines
 INK = "#2B2B2B"     # text, error bars
-
-# Ordered list for plots with N unlabelled series.
-SERIES = [BLUE, FOREST, SAGE, NAVY]
 
 SURFACE = "#fcfcfb"
 

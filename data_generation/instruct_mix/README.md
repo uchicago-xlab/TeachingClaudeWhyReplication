@@ -1,7 +1,7 @@
 # Instruction-tuning mix
 
 Every model in the post gets this mix: 13,000 chat samples drawn from ten public
-datasets (Table 4). `mix.json` lists the sources and the sample count for each.
+datasets (Table 3). `mix.json` lists the sources and the sample count for each.
 
 Building the mix takes two steps. Run both from the repo root.
 

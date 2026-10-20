@@ -19,9 +19,8 @@ estimate. --yes executes.
 --teacher names one of the two adapted datasets (sonnet-5, gpt-5.6-terra). The
 alternative is file mode — --train-file/--val-file/--run-tag — which trains an
 arbitrary dataset and names its state file and checkpoints after the tag
-instead of the teacher. A row may carry "render": "native", which trains the
-assistant turn with the model's own CoT intact; every other row renders in the
-family's standard thinking-off view. See resolve_data and render_row.
+instead of the teacher. Every row renders in the family's standard
+thinking-off view. See resolve_data.
 
 Two SDK facts shape the code below (both verified against tinker 0.24.0 /
 tinker-cookbook 0.5.3):
@@ -315,43 +314,12 @@ def resolve_data(args, model: families.SweepModel) -> DataChoice:
     return DataChoice(train, val, args.teacher, args.teacher)
 
 
-def render_row(tokenizer, family: families.Family, row: dict):
-    """One row -> (tokens, weights), honoring the row's render view.
-
-    "native" marks a row whose assistant turn keeps the model's own CoT;
-    absence means the family's standard thinking-off view.
-    Anything else is a data bug and aborts before money moves.
-    """
-    view = row.get("render")
-    if view == "native":
-        # render_native_training_example's scope is exactly one trailing
-        # assistant turn: it re-renders messages[:-1] through the template,
-        # which drops <think> from every earlier assistant turn. A multi-turn
-        # row would therefore train history stripped of the reasoning this
-        # experiment exists to keep, and nothing downstream would show it.
-        if any(m["role"] == "assistant" for m in row["messages"][:-1]):
-            raise SystemExit(
-                "multi-turn native row: render_native_training_example covers one "
-                "trailing assistant turn only, so the earlier turns' CoT would be silently "
-                "stripped by the template (see its docstring). Split the row, or extend "
-                "that function deliberately"
-            )
-        return render.render_native_training_example(tokenizer, family, row["messages"])
-    if view is not None:
-        raise SystemExit(f"unknown render value {view!r} — expected 'native' or no key")
-    return render.render_training_example(tokenizer, family, row["messages"])
-
-
 def render_split(tokenizer, family: families.Family, split: Split):
     """Render every row up front so a format failure costs nothing to discover."""
     out = []
     for i, row in enumerate(split.rows):
         try:
-            out.append(render_row(tokenizer, family, row))
-        except SystemExit as exc:
-            # render_row's own refusals (unknown view, multi-turn native row)
-            # know nothing about which file or row they came from.
-            raise SystemExit(f"{split.path}: row {i}: {exc}") from exc
+            out.append(render.render_training_example(tokenizer, family, row["messages"]))
         except (render.RenderMismatch, AssertionError, KeyError) as exc:
             raise SystemExit(f"{split.path}: row {i}: {type(exc).__name__}: {exc}") from exc
     return out
